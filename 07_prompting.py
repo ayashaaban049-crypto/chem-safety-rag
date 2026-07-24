@@ -34,7 +34,7 @@ format_context_for_prompt = retrieve_module.format_context_for_prompt
 # the environment or Streamlit secrets.
 # ---------------------------------------------------------------------------
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama3-70b-8192")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 SYSTEM_PROMPT = """You are a Chemical Safety & MSDS Assistant (مستشار السلامة الكيميائية) \
 for a chemistry/biochemistry lab. Your job is to give fast, accurate emergency and \
