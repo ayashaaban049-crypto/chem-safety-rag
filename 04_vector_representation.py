@@ -22,12 +22,11 @@ Run standalone (quick sanity check / smoke test):
 
 import os
 
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # Swap to "BAAI/bge-large-en-v1.5" for higher accuracy at the cost of speed
 # and memory. bge-small is a good default for a lightweight app.
-EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL_NAME", "BAAI/bge-m3")
-
+EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL_NAME", "intfloat/multilingual-e5-small")
 # bge-m3 is a multilingual model (Arabic + English + 100 languages) and does
 # not require a query instruction prefix the way bge-small-en-v1.5 does.
 BGE_QUERY_INSTRUCTION = ""
@@ -39,11 +38,10 @@ def get_embedding_model() -> HuggingFaceBgeEmbeddings:
     """Return a cached BGE embedding model instance."""
     global _embedding_model
     if _embedding_model is None:
-        _embedding_model = HuggingFaceBgeEmbeddings(
+       _embedding_model = HuggingFaceEmbeddings(
             model_name=EMBEDDING_MODEL_NAME,
             model_kwargs={"device": "cpu"},
             encode_kwargs={"normalize_embeddings": True},
-            query_instruction=BGE_QUERY_INSTRUCTION,
         )
         print(f"[04_vector_representation] Loaded embedding model: {EMBEDDING_MODEL_NAME}")
     return _embedding_model
