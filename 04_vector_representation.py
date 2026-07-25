@@ -26,9 +26,11 @@ from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
 # Swap to "BAAI/bge-large-en-v1.5" for higher accuracy at the cost of speed
 # and memory. bge-small is a good default for a lightweight app.
-EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL_NAME", "BAAI/bge-small-en-v1.5")
+EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL_NAME", "BAAI/bge-m3")
 
-BGE_QUERY_INSTRUCTION = "Represent this question for retrieving relevant chemical safety information:"
+# bge-m3 is a multilingual model (Arabic + English + 100 languages) and does
+# not require a query instruction prefix the way bge-small-en-v1.5 does.
+BGE_QUERY_INSTRUCTION = ""
 
 _embedding_model = None  # simple module-level cache
 
