@@ -84,6 +84,33 @@ def get_groq_client(api_key: str = None) -> Groq:
     return Groq(api_key=key)
 
 
+def _translate_to_english(question: str, api_key: str = None, model: str = None) -> str:
+    """Translate the question to English for retrieval only. If it's already
+    English, the model just returns it unchanged. Falls back to the original
+    question if translation fails for any reason."""
+    try:
+        client = get_groq_client(api_key)
+        response = client.chat.completions.create(
+            model=model or GROQ_MODEL,
+            temperature=0,
+            max_tokens=200,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Translate the user's message to English. If it is "
+                        "already in English, return it unchanged. Reply with "
+                        "ONLY the translated text, nothing else."
+                    ),
+                },
+                {"role": "user", "content": question},
+            ],
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        return question  # if translation fails, just retrieve with the original
+
+
 def generate_answer(
     question: str,
     k: int = 5,
@@ -91,8 +118,9 @@ def generate_answer(
     model: str = None,
     temperature: float = 0.1,
 ) -> dict:
-    """Full RAG call: retrieve context, build the grounded prompt, call Groq."""
-    results = retrieve_context(question, k=k)
+    """Full RAG call: translate -> retrieve context -> build grounded prompt -> call Groq."""
+    search_query = _translate_to_english(question, api_key, model)
+    results = retrieve_context(search_query, k=k)
 
     if not results:
         return {
