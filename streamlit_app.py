@@ -119,19 +119,19 @@ def ask(question: str):
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.markdown("### 🧪 Chemical Safety & MSDS Assistant")
-    st.markdown("مستشار السلامة الكيميائية وتصنيف المخاطر")
+    st.caption("👩‍💻 Developed by: Aya Shaaban & Iman Moustafa")
     st.divider()
     st.markdown(
         "**Stack**\n"
-      "- Embeddings: `BAAI/bge-m3` (multilingual)\n"
-        "- LLM: Groq `llama3-70b-8192`\n"
+        "- Embeddings: `intfloat/multilingual-e5-small`\n"
+        "- LLM: Groq `llama-3.3-70b-versatile`\n"
         "- Vector store: ChromaDB\n"
-        "- Knowledge base: ICSC safety cards"
+        "- Knowledge base: ICSC + MSDS + NIOSH + WHO safety documents"
     )
     st.divider()
     key_status = "✅ configured" if prompting.GROQ_API_KEY else "❌ not set"
     st.markdown(f"**Groq API key:** {key_status}")
-  if st.button("🔄 Rebuild knowledge base"):
+    if st.button("🔄 Rebuild knowledge base"):
         st.cache_resource.clear()
         st.rerun()
     st.divider()
