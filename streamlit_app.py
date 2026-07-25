@@ -29,6 +29,16 @@ st.set_page_config(
 
 CHROMA_DIR = Path(__file__).parent / "chroma_db"
 
+
+def get_available_chemicals() -> list[str]:
+    """List unique chemical names parsed from the PDF filenames in data/."""
+    data_dir = Path(__file__).parent / "data"
+    names = set()
+    for pdf_path in data_dir.glob("*.pdf"):
+        meta = docs_mod.parse_filename_metadata(pdf_path.name)
+        names.add(meta["chemical_name"])
+    return sorted(names)
+
 QUICK_QUERIES = [
     "How should a concentrated sulfuric acid (H2SO4) spill be handled in the lab?",
     "What PPE is required when handling acrylamide or arsenic powder?",
@@ -121,9 +131,17 @@ with st.sidebar:
     st.divider()
     key_status = "✅ configured" if prompting.GROQ_API_KEY else "❌ not set"
     st.markdown(f"**Groq API key:** {key_status}")
-    if st.button("🔄 Rebuild knowledge base"):
+  if st.button("🔄 Rebuild knowledge base"):
         st.cache_resource.clear()
         st.rerun()
+    st.divider()
+
+    st.markdown("### 🧪 Available Chemicals")
+    sidebar_clicked = None
+    with st.expander(f"Browse list ({len(get_available_chemicals())})", expanded=False):
+        for chem in get_available_chemicals():
+            if st.button(chem, key=f"chem_{chem}", use_container_width=True):
+                sidebar_clicked = chem
     st.divider()
     st.caption(
         "⚠️ This assistant answers strictly from the loaded ICSC/MSDS cards. "
@@ -162,5 +180,10 @@ typed_question = st.chat_input("Ask about a chemical spill, PPE, first aid, stor
 
 if quick_clicked:
     ask(quick_clicked)
+elif sidebar_clicked:
+    ask(
+        f"What are the safety precautions, PPE, first-aid steps, storage "
+        f"requirements, and spill handling instructions for {sidebar_clicked}?"
+    )
 elif typed_question:
     ask(typed_question)
