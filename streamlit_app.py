@@ -113,7 +113,7 @@ with st.sidebar:
     st.divider()
     st.markdown(
         "**Stack**\n"
-        "- Embeddings: `BAAI/bge-small-en-v1.5`\n"
+      "- Embeddings: `BAAI/bge-m3` (multilingual)\n"
         "- LLM: Groq `llama3-70b-8192`\n"
         "- Vector store: ChromaDB\n"
         "- Knowledge base: ICSC safety cards"
