@@ -3,10 +3,10 @@
 -----------------------------
 Stage 4 of the RAG pipeline: VECTOR REPRESENTATION.
 
-Wraps a Hugging Face multilingual embedding model (intfloat/multilingual-e5-small
-by default) behind a single get_embedding_model() function so every other
-stage (store creation + retrieval) shares one consistent embedding function.
-This model supports both Arabic and English queries.
+Uses BAAI/bge-small-en-v1.5 (lightweight, reliable on constrained hosting).
+Arabic query support is handled upstream by translating the question to
+English before retrieval (see 07_prompting.py), so this embedding model
+does not need to be multilingual itself.
 
 Run standalone (quick sanity check / smoke test):
     python 04_vector_representation.py
@@ -14,21 +14,24 @@ Run standalone (quick sanity check / smoke test):
 
 import os
 
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
-EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL_NAME", "intfloat/multilingual-e5-small")
+EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL_NAME", "BAAI/bge-small-en-v1.5")
+
+BGE_QUERY_INSTRUCTION = "Represent this question for retrieving relevant chemical safety information:"
 
 _embedding_model = None  # simple module-level cache
 
 
-def get_embedding_model() -> HuggingFaceEmbeddings:
-    """Return a cached multilingual embedding model instance."""
+def get_embedding_model() -> HuggingFaceBgeEmbeddings:
+    """Return a cached BGE embedding model instance."""
     global _embedding_model
     if _embedding_model is None:
-        _embedding_model = HuggingFaceEmbeddings(
+        _embedding_model = HuggingFaceBgeEmbeddings(
             model_name=EMBEDDING_MODEL_NAME,
             model_kwargs={"device": "cpu"},
             encode_kwargs={"normalize_embeddings": True},
+            query_instruction=BGE_QUERY_INSTRUCTION,
         )
         print(f"[04_vector_representation] Loaded embedding model: {EMBEDDING_MODEL_NAME}")
     return _embedding_model
