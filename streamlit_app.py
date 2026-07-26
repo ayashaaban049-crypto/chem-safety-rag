@@ -130,19 +130,7 @@ with st.sidebar:
     ):
         st.cache_resource.clear()
         st.rerun()
-# ==============================
-# Upload PDF
-# ==============================
 
-uploaded_pdf = st.file_uploader(
-    "📄 Upload your own Safety PDF",
-    type=["pdf"],
-    accept_multiple_files=False,
-    help="Upload an MSDS, SDS, SOP, or any chemical safety document.",
-)
-
-if uploaded_pdf:
-    st.success(f"Uploaded: {uploaded_pdf.name}")
     st.divider()
 
     st.markdown("### 🧪 Available Chemicals")
