@@ -132,6 +132,36 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
+    st.markdown("### 📄 Upload a Document (this session only)")
+    uploaded_pdf = st.file_uploader(
+        "Upload one MSDS / SDS / SOP / safety guide PDF",
+        type=["pdf"],
+        accept_multiple_files=False,
+        key="session_pdf_uploader",
+        help=(
+            "This file is used only for your current session. It is never "
+            "saved to disk and never added to the permanent knowledge base."
+        ),
+    )
+
+    if uploaded_pdf is not None:
+        # Store the raw bytes in session_state so later steps (Step 2+) can
+        # process it without needing to re-upload on every rerun. Nothing is
+        # written to disk here — it stays in memory for this session only.
+        if st.session_state.get("uploaded_pdf_name") != uploaded_pdf.name:
+            st.session_state["uploaded_pdf_bytes"] = uploaded_pdf.getvalue()
+            st.session_state["uploaded_pdf_name"] = uploaded_pdf.name
+            # Reset any previously built temporary retriever for the old file
+            st.session_state.pop("uploaded_retriever", None)
+        st.success(f"✅ Loaded for this session: {uploaded_pdf.name}")
+    else:
+        # If the user removes the uploaded file via the widget's "x", clear
+        # the session state too so stale data isn't reused.
+        st.session_state.pop("uploaded_pdf_bytes", None)
+        st.session_state.pop("uploaded_pdf_name", None)
+        st.session_state.pop("uploaded_retriever", None)
+
+    st.divider()
 
     st.markdown("### 🧪 Available Chemicals")
 
