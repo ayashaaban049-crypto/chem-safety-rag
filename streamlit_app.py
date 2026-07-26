@@ -341,7 +341,7 @@ def ask(question: str):
 with st.sidebar:
     render_sidebar_avatar()
 
-    st.markdown('<div class="sb-card"><h4>🎨 Theme / المظهر</h4>', unsafe_allow_html=True)
+    st.markdown('<div class="sb-card"><h4>🎨 Theme </h4>', unsafe_allow_html=True)
     theme_choice = st.radio(
         "Theme",
         options=["🌙 Dark Mode", "☀️ Light Mode"],
