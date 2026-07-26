@@ -126,22 +126,28 @@ def retrieve_context_hybrid(
     session-scoped uploaded-PDF retriever (see 08_uploaded_pdf.py) and merges
     the results in.
 
+    When a file is uploaded, slots are reserved for each source (roughly
+    half from the uploaded document, half from the permanent Chroma
+    knowledge base) so neither source can crowd the other out entirely.
+    Any unused uploaded slots are backfilled from Chroma.
+
     If uploaded_retriever is None, this behaves EXACTLY like retrieve_context()
     — no change for users who haven't uploaded anything.
     """
-    chroma_results = retrieve_context(query, k=k, fetch_k=fetch_k)
-
     if uploaded_retriever is None:
-        return chroma_results
+        return retrieve_context(query, k=k, fetch_k=fetch_k)
+
+    uploaded_slots = max(1, k // 2)
+    chroma_slots = k - uploaded_slots
 
     try:
         uploaded_docs = uploaded_retriever.invoke(query)
     except Exception as exc:
         print(f"[06_retrieve_context] Uploaded retriever failed, ignoring it: {exc}")
-        return chroma_results
+        return retrieve_context(query, k=k, fetch_k=fetch_k)
 
     uploaded_results = []
-    for doc in uploaded_docs:
+    for doc in uploaded_docs[:uploaded_slots]:
         uploaded_results.append(
             {
                 "text": doc.page_content,
@@ -156,8 +162,12 @@ def retrieve_context_hybrid(
             }
         )
 
+    # Backfill: if the uploaded PDF didn't have enough relevant chunks,
+    # let Chroma fill the remaining slots instead of returning fewer than k.
+    remaining_slots = k - len(uploaded_results)
+    chroma_results = retrieve_context(query, k=remaining_slots, fetch_k=fetch_k)
+
     merged = uploaded_results + chroma_results
-    merged.sort(key=lambda r: r["score"], reverse=True)
     return merged[:k]
 
 if __name__ == "__main__":
