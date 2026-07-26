@@ -121,22 +121,36 @@ with st.sidebar:
     st.markdown("### 🧪 Chemical Safety & MSDS Assistant")
     st.caption("👩‍💻 Developed by: Aya Shaaban & Iman Moustafa")
     st.divider()
- 
 
-    #key_status = "✅ configured" if prompting.GROQ_API_KEY else "❌ not set"
-    #st.markdown(f"**Groq API key:** {key_status}")
-    if st.button("🔄 Rebuild knowledge base"):
+    st.markdown("#### ⚙️ System")
+
+    if st.button(
+        "🔄 Rebuild Knowledge Base",
+        use_container_width=True,
+    ):
         st.cache_resource.clear()
         st.rerun()
+
     st.divider()
 
     st.markdown("### 🧪 Available Chemicals")
+
     sidebar_clicked = None
-    with st.expander(f"Browse list ({len(get_available_chemicals())})", expanded=False):
+
+    with st.expander(
+        f"📚 Browse Chemicals ({len(get_available_chemicals())})",
+        expanded=False,
+    ):
         for chem in get_available_chemicals():
-            if st.button(chem, key=f"chem_{chem}", use_container_width=True):
+            if st.button(
+                chem,
+                key=f"chem_{chem}",
+                use_container_width=True,
+            ):
                 sidebar_clicked = chem
+
     st.divider()
+
     st.caption(
         "⚠️ This assistant answers strictly from the loaded ICSC/MSDS cards. "
         "It is a decision-support tool, not a replacement for your lab's "
