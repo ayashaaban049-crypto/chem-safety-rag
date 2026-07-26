@@ -1,15 +1,15 @@
 """
 streamlit_app.py
 -------------------
-Chemical Safety & MSDS Assistant | مستشار السلامة الكيميائية وتصنيف المخاطر
+Chemical Safety & MSDS Assistant | Developed by Aya Shaaban & Iman Moustafa
 
 Streamlit front-end for the RAG pipeline built across 01_documents.py ->
-07_prompting.py. On first load it builds the Chroma vector store from the
-PDFs in data/ (cached across reruns), then serves a chat interface backed
-by BGE embeddings + Groq Llama 3 70B, with quick-access buttons for the
-most common lab emergencies and a "Sources" panel under every answer.
+08_uploaded_pdf.py. All backend logic (Chroma retrieval, session-scoped
+uploaded-PDF FAISS retrieval, Groq generation) is unchanged from before —
+this file only adds visual styling and layout.
 """
 
+import base64
 import importlib
 from pathlib import Path
 
@@ -29,16 +29,7 @@ st.set_page_config(
 )
 
 CHROMA_DIR = Path(__file__).parent / "chroma_db"
-
-
-def get_available_chemicals() -> list[str]:
-    """List unique chemical names parsed from the PDF filenames in data/."""
-    data_dir = Path(__file__).parent / "data"
-    names = set()
-    for pdf_path in data_dir.glob("*.pdf"):
-        meta = docs_mod.parse_filename_metadata(pdf_path.name)
-        names.add(meta["chemical_name"])
-    return sorted(names)
+ASSETS_DIR = Path(__file__).parent / "assets"
 
 QUICK_QUERIES = [
     "How should a concentrated sulfuric acid (H2SO4) spill be handled in the lab?",
@@ -58,6 +49,157 @@ except Exception:
     pass
 
 
+# ---------------------------------------------------------------------------
+# Custom CSS — dark lab-safety theme
+# ---------------------------------------------------------------------------
+def inject_css():
+    st.markdown(
+        """
+        <style>
+        :root {
+            --safety-cyan: #00e676;
+            --dark-emerald: #0b3d2e;
+            --bg-panel: #12181c;
+        }
+
+        /* Header banner */
+        .lab-header {
+            background: linear-gradient(135deg, #0d1117 0%, #0b3d2e 60%, #08201a 100%);
+            border: 1px solid var(--safety-cyan);
+            border-radius: 14px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 0 24px rgba(0, 230, 118, 0.15);
+        }
+        .lab-header h1 {
+            color: #ffffff;
+            font-size: 2rem;
+            margin: 0 0 6px 0;
+        }
+        .lab-header p {
+            color: #b8ffd9;
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        /* Sidebar avatar */
+        .avatar-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .avatar-wrap img {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 3px solid var(--safety-cyan);
+            box-shadow: 0 0 18px rgba(0, 230, 118, 0.55);
+        }
+        .dev-badge {
+            text-align: center;
+            color: #d7ffe9;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 18px;
+        }
+
+        /* Sidebar cards */
+        .sb-card {
+            background: var(--bg-panel);
+            border: 1px solid rgba(0, 230, 118, 0.35);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+        .sb-card h4 {
+            color: var(--safety-cyan);
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+        }
+
+        /* Quick query buttons */
+        div[data-testid="stButton"] > button {
+            border-radius: 10px !important;
+            border: 1px solid rgba(0, 230, 118, 0.4) !important;
+            transition: all 0.25s ease-in-out;
+        }
+        div[data-testid="stButton"] > button:hover {
+            border: 1px solid var(--safety-cyan) !important;
+            box-shadow: 0 0 14px rgba(0, 230, 118, 0.65);
+            color: var(--safety-cyan) !important;
+        }
+
+        /* Alert callouts for answers */
+        .alert-box {
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin: 10px 0;
+            border-left: 5px solid;
+        }
+        .alert-danger {
+            background: rgba(255, 87, 34, 0.10);
+            border-left-color: #ff5722;
+        }
+        .alert-safe {
+            background: rgba(0, 230, 118, 0.08);
+            border-left-color: var(--safety-cyan);
+        }
+        .alert-neutral {
+            background: rgba(255, 255, 255, 0.04);
+            border-left-color: #808a8f;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_header():
+    st.markdown(
+        """
+        <div class="lab-header">
+            <h1>🧪 Chemical Safety & MSDS Assistant</h1>
+            <p>Real-time emergency guidance for lab spills, first aid, PPE, and waste
+            management — grounded strictly in ICSC / MSDS safety data.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_sidebar_avatar():
+    image_path = ASSETS_DIR / "download.jpg"
+    if image_path.exists():
+        encoded = base64.b64encode(image_path.read_bytes()).decode()
+        st.markdown(
+            f"""
+            <div class="avatar-wrap">
+                <img src="data:image/jpeg;base64,{encoded}" />
+            </div>
+            <div class="dev-badge">👨‍🔬 Developed by: Aya Shaaban &amp; Iman Moustafa</div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="dev-badge">👨‍🔬 Developed by: Aya Shaaban &amp; Iman Moustafa</div>',
+            unsafe_allow_html=True,
+        )
+
+
+def get_alert_class(question: str, answer: str) -> str:
+    """Pick a callout color based on the question/answer topic."""
+    text = f"{question} {answer}".lower()
+    danger_words = ["spill", "first aid", "fire", "emergency", "exposure", "inhal", "burn"]
+    safe_words = ["storage", "store", "ppe", "protective equipment", "dispos"]
+    if any(w in text for w in danger_words):
+        return "alert-danger"
+    if any(w in text for w in safe_words):
+        return "alert-safe"
+    return "alert-neutral"
+
+
 @st.cache_resource(show_spinner=False)
 def ensure_vector_store():
     """Build the Chroma store once (from data/) and cache it for the session.
@@ -65,13 +207,23 @@ def ensure_vector_store():
     if CHROMA_DIR.exists() and any(CHROMA_DIR.iterdir()):
         return store_mod.load_vector_store()
 
-    with st.spinner("Building knowledge base from ICSC safety cards (first run only)..."):
+    with st.spinner("Building knowledge base from safety documents (first run only)..."):
         pages = docs_mod.load_documents()
         clean_pages = prep_mod.preprocess_documents(pages)
         chunks = chunk_mod.chunk_documents(clean_pages)
         documents = store_mod.chunks_to_documents(chunks)
         store_mod.build_vector_store(documents)
     return store_mod.load_vector_store()
+
+
+def get_available_chemicals() -> list[str]:
+    """List unique chemical names parsed from the PDF filenames in data/."""
+    data_dir = Path(__file__).parent / "data"
+    names = set()
+    for pdf_path in data_dir.glob("*.pdf"):
+        meta = docs_mod.parse_filename_metadata(pdf_path.name)
+        names.add(meta["chemical_name"])
+    return sorted(names)
 
 
 def render_sources(sources: list[dict]):
@@ -112,7 +264,11 @@ def ask(question: str):
             except Exception as exc:
                 result = {"answer": f"⚠️ Error generating answer: {exc}", "sources": []}
 
-        st.markdown(result["answer"])
+        alert_class = get_alert_class(question, result["answer"])
+        st.markdown(
+            f'<div class="alert-box {alert_class}">{result["answer"]}</div>',
+            unsafe_allow_html=True,
+        )
         render_sources(result["sources"])
         st.session_state.messages.append(
             {"role": "assistant", "content": result["answer"], "sources": result["sources"]}
@@ -122,22 +278,18 @@ def ask(question: str):
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
+inject_css()
+
 with st.sidebar:
-    st.markdown("### 🧪 Chemical Safety & MSDS Assistant")
-    st.caption("👩‍💻 Developed by: Aya Shaaban & Iman Moustafa")
-    st.divider()
+    render_sidebar_avatar()
 
-    st.markdown("#### ⚙️ System")
-
-    if st.button(
-        "🔄 Rebuild Knowledge Base",
-        use_container_width=True,
-    ):
+    st.markdown('<div class="sb-card"><h4>⚙️ System</h4>', unsafe_allow_html=True)
+    if st.button("🔄 Rebuild knowledge base"):
         st.cache_resource.clear()
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.divider()
-    st.markdown("### 📄 Upload a Document (this session only)")
+    st.markdown('<div class="sb-card"><h4>📄 Upload a Document (this session only)</h4>', unsafe_allow_html=True)
     uploaded_pdf = st.file_uploader(
         "Upload one MSDS / SDS / SOP / safety guide PDF",
         type=["pdf"],
@@ -147,12 +299,10 @@ with st.sidebar:
             "This file is used only for your current session. It is never "
             "saved to disk and never added to the permanent knowledge base."
         ),
+        label_visibility="collapsed",
     )
 
     if uploaded_pdf is not None:
-        # Store the raw bytes in session_state so later steps (Step 2+) can
-        # process it without needing to re-upload on every rerun. Nothing is
-        # written to disk here — it stays in memory for this session only.
         if st.session_state.get("uploaded_pdf_name") != uploaded_pdf.name:
             st.session_state["uploaded_pdf_bytes"] = uploaded_pdf.getvalue()
             st.session_state["uploaded_pdf_name"] = uploaded_pdf.name
@@ -174,31 +324,18 @@ with st.sidebar:
         else:
             st.warning(f"⚠️ No searchable text found in: {uploaded_pdf.name}")
     else:
-        # If the user removes the uploaded file via the widget's "x", clear
-        # the session state too so stale data isn't reused.
         st.session_state.pop("uploaded_pdf_bytes", None)
         st.session_state.pop("uploaded_pdf_name", None)
         st.session_state.pop("uploaded_retriever", None)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.divider()
-
-    st.markdown("### 🧪 Available Chemicals")
-
+    st.markdown('<div class="sb-card"><h4>🧪 Available Chemicals</h4>', unsafe_allow_html=True)
     sidebar_clicked = None
-
-    with st.expander(
-        f"📚 Browse Chemicals ({len(get_available_chemicals())})",
-        expanded=False,
-    ):
+    with st.expander(f"Browse list ({len(get_available_chemicals())})", expanded=False):
         for chem in get_available_chemicals():
-            if st.button(
-                chem,
-                key=f"chem_{chem}",
-                use_container_width=True,
-            ):
+            if st.button(chem, key=f"chem_{chem}", use_container_width=True):
                 sidebar_clicked = chem
-
-    st.divider()
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.caption(
         "⚠️ This assistant answers strictly from the loaded ICSC/MSDS cards. "
@@ -209,17 +346,16 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-st.title("🧪 Chemical Safety & MSDS Assistant")
-st.caption("Ask about spills, PPE, first aid, storage, and waste disposal for lab chemicals.")
+render_header()
 
 ensure_vector_store()
 
 st.markdown("**Quick emergency queries:**")
-cols = st.columns(len(QUICK_QUERIES))
 quick_clicked = None
-for col, q in zip(cols, QUICK_QUERIES):
-    label = q if len(q) < 45 else q[:42] + "..."
-    if col.button(label, help=q, use_container_width=True):
+row1 = st.columns(2)
+row2 = st.columns(2)
+for col, q in zip(row1 + row2, QUICK_QUERIES):
+    if col.button(q, use_container_width=True, key=f"quick_{q}"):
         quick_clicked = q
 
 st.divider()
@@ -229,7 +365,14 @@ if "messages" not in st.session_state:
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            alert_class = get_alert_class("", msg["content"])
+            st.markdown(
+                f'<div class="alert-box {alert_class}">{msg["content"]}</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(msg["content"])
         if msg["role"] == "assistant" and msg.get("sources"):
             render_sources(msg["sources"])
 
