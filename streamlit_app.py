@@ -7,6 +7,12 @@ Streamlit front-end for the RAG pipeline built across 01_documents.py ->
 08_uploaded_pdf.py. All backend logic (Chroma retrieval, session-scoped
 uploaded-PDF FAISS retrieval, Groq generation) is unchanged — this file only
 adds visual styling, layout, and a Dark/Light theme switcher.
+
+Styling note: custom CSS is deliberately kept minimal and only targets
+elements we render ourselves (header banner, dev badge, prompt buttons) plus
+the top-level app/sidebar/header background so there are no white gaps.
+Native Streamlit components (file_uploader, radio, text inputs) are left
+untouched so their built-in rendering and contrast stay intact.
 """
 
 import base64
@@ -57,80 +63,67 @@ if "theme" not in st.session_state:
 
 
 def inject_css(theme: str):
+    """Minimal, targeted CSS. Only touches:
+    - overall app / header / sidebar background (so there are no white gaps)
+    - the custom header banner we render
+    - the developer badge / avatar we render
+    - button hover styling (used by the quick-query prompt buttons)
+
+    Deliberately does NOT touch st.file_uploader, st.radio, text inputs, or
+    any other native Streamlit component internals — those keep their
+    built-in Streamlit styling and contrast in both themes.
+    """
     if theme == "dark":
-        vars_css = """
-            --bg-app: #0e1117;
-            --bg-panel: #12181c;
-            --bg-card: #161d22;
-            --text-main: #ffffff;
-            --text-muted: #b8ffd9;
-            --accent: #00e676;
-            --accent-glow: rgba(0, 230, 118, 0.55);
-            --border-soft: rgba(0, 230, 118, 0.35);
-            --danger-bg: rgba(255, 87, 34, 0.10);
-            --danger-border: #ff5722;
-            --safe-bg: rgba(0, 230, 118, 0.08);
-            --neutral-bg: rgba(255, 255, 255, 0.04);
-            --neutral-border: #808a8f;
-        """
+        bg_app = "#0e1117"
+        bg_sidebar = "#12181c"
+        text_main = "#ffffff"
+        text_muted = "#b8ffd9"
+        accent = "#00e676"
+        accent_glow = "rgba(0, 230, 118, 0.55)"
+        border_soft = "rgba(0, 230, 118, 0.35)"
     else:  # light
-        vars_css = """
-            --bg-app: #f8f9fa;
-            --bg-panel: #ffffff;
-            --bg-card: #f1f5f2;
-            --text-main: #212529;
-            --text-muted: #2e6b4f;
-            --accent: #1b8a4f;
-            --accent-glow: rgba(27, 138, 79, 0.35);
-            --border-soft: rgba(27, 138, 79, 0.30);
-            --danger-bg: rgba(255, 87, 34, 0.08);
-            --danger-border: #d84315;
-            --safe-bg: rgba(27, 138, 79, 0.08);
-            --neutral-bg: rgba(0, 0, 0, 0.03);
-            --neutral-border: #9aa1a6;
-        """
+        bg_app = "#f8f9fa"
+        bg_sidebar = "#ffffff"
+        text_main = "#212529"
+        text_muted = "#2e6b4f"
+        accent = "#1b8a4f"
+        accent_glow = "rgba(27, 138, 79, 0.35)"
+        border_soft = "rgba(27, 138, 79, 0.30)"
 
     st.markdown(
         f"""
         <style>
-        :root {{
-            {vars_css}
+        /* Consistent app-wide background so there are no white gaps between
+           the header bar, main container, and sidebar. */
+        .stApp,
+        header[data-testid="stHeader"] {{
+            background-color: {bg_app};
         }}
-
-        .stApp {{
-            background-color: var(--bg-app);
-            color: var(--text-main);
-        }}
-
-        /* Sidebar */
         section[data-testid="stSidebar"] {{
-            background-color: var(--bg-panel);
-        }}
-        section[data-testid="stSidebar"] * {{
-            color: var(--text-main);
+            background-color: {bg_sidebar};
         }}
 
-        /* Header banner */
+        /* Custom header banner */
         .lab-header {{
-            background: linear-gradient(135deg, var(--bg-app) 0%, var(--bg-panel) 60%, var(--bg-card) 100%);
-            border: 1px solid var(--accent);
+            background: linear-gradient(135deg, {bg_app} 0%, {bg_sidebar} 100%);
+            border: 1px solid {accent};
             border-radius: 14px;
             padding: 28px 32px;
             margin-bottom: 24px;
-            box-shadow: 0 0 24px var(--accent-glow);
+            box-shadow: 0 0 24px {accent_glow};
         }}
         .lab-header h1 {{
-            color: var(--text-main);
+            color: {text_main};
             font-size: 2rem;
             margin: 0 0 6px 0;
         }}
         .lab-header p {{
-            color: var(--text-muted);
+            color: {text_muted};
             font-size: 0.95rem;
             margin: 0;
         }}
 
-        /* Sidebar avatar */
+        /* Developer badge + avatar */
         .avatar-wrap {{
             display: flex;
             justify-content: center;
@@ -141,77 +134,47 @@ def inject_css(theme: str):
             height: 120px;
             object-fit: cover;
             border-radius: 50%;
-            border: 3px solid var(--accent);
-            box-shadow: 0 0 18px var(--accent-glow);
+            border: 3px solid {accent};
+            box-shadow: 0 0 18px {accent_glow};
         }}
         .dev-badge {{
             text-align: center;
-            color: var(--text-muted);
+            color: {text_muted};
             font-size: 0.9rem;
             font-weight: 600;
             margin-bottom: 18px;
         }}
 
-        /* Sidebar cards */
-        .sb-card {{
-            background: var(--bg-card);
-            border: 1px solid var(--border-soft);
-            border-radius: 12px;
-            padding: 14px 16px;
-            margin-bottom: 16px;
-        }}
-        .sb-card h4 {{
-            color: var(--accent);
-            margin: 0 0 8px 0;
-            font-size: 0.95rem;
-        }}
-
-        /* Buttons */
+        /* Prompt / action buttons only — hover glow effect */
         div[data-testid="stButton"] > button {{
             border-radius: 10px !important;
-            border: 1px solid var(--border-soft) !important;
-            background-color: var(--bg-card) !important;
-            color: var(--text-main) !important;
+            border: 1px solid {border_soft} !important;
             transition: all 0.25s ease-in-out;
         }}
         div[data-testid="stButton"] > button:hover {{
-            border: 1px solid var(--accent) !important;
-            box-shadow: 0 0 14px var(--accent-glow);
-            color: var(--accent) !important;
+            border: 1px solid {accent} !important;
+            box-shadow: 0 0 14px {accent_glow};
+            color: {accent} !important;
         }}
 
-        /* Text input / chat input */
-        div[data-testid="stChatInput"] textarea,
-        div[data-baseweb="input"] input {{
-            background-color: var(--bg-card) !important;
-            color: var(--text-main) !important;
-            border: 1px solid var(--border-soft) !important;
-        }}
-
-        /* Radio (theme switcher) */
-        div[role="radiogroup"] label {{
-            color: var(--text-main) !important;
-        }}
-
-        /* Alert callouts for answers */
+        /* Answer callout boxes */
         .alert-box {{
             border-radius: 10px;
             padding: 16px 18px;
             margin: 10px 0;
             border-left: 5px solid;
-            color: var(--text-main);
         }}
         .alert-danger {{
-            background: var(--danger-bg);
-            border-left-color: var(--danger-border);
+            background: rgba(255, 87, 34, 0.10);
+            border-left-color: #ff5722;
         }}
         .alert-safe {{
-            background: var(--safe-bg);
-            border-left-color: var(--accent);
+            background: rgba(0, 230, 118, 0.08);
+            border-left-color: {accent};
         }}
         .alert-neutral {{
-            background: var(--neutral-bg);
-            border-left-color: var(--neutral-border);
+            background: rgba(128, 128, 128, 0.08);
+            border-left-color: #808a8f;
         }}
         </style>
         """,
@@ -336,12 +299,13 @@ def ask(question: str):
 
 
 # ---------------------------------------------------------------------------
-# Sidebar
+# Sidebar (plain Streamlit containers — no custom card CSS, avoids the
+# rendering conflicts from before)
 # ---------------------------------------------------------------------------
 with st.sidebar:
     render_sidebar_avatar()
 
-    st.markdown('<div class="sb-card"><h4>🎨 Theme </h4>', unsafe_allow_html=True)
+    st.markdown("#### 🎨 Theme / المظهر")
     theme_choice = st.radio(
         "Theme",
         options=["🌙 Dark Mode", "☀️ Light Mode"],
@@ -350,15 +314,15 @@ with st.sidebar:
         key="theme_radio",
     )
     st.session_state["theme"] = "dark" if theme_choice == "🌙 Dark Mode" else "light"
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
 
-    st.markdown('<div class="sb-card"><h4>⚙️ System</h4>', unsafe_allow_html=True)
+    st.markdown("#### ⚙️ System")
     if st.button("🔄 Rebuild knowledge base"):
         st.cache_resource.clear()
         st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
 
-    st.markdown('<div class="sb-card"><h4>📄 Upload a Document (this session only)</h4>', unsafe_allow_html=True)
+    st.markdown("#### 📄 Upload a Document (this session only)")
     uploaded_pdf = st.file_uploader(
         "Upload one MSDS / SDS / SOP / safety guide PDF",
         type=["pdf"],
@@ -368,7 +332,6 @@ with st.sidebar:
             "This file is used only for your current session. It is never "
             "saved to disk and never added to the permanent knowledge base."
         ),
-        label_visibility="collapsed",
     )
 
     if uploaded_pdf is not None:
@@ -396,15 +359,15 @@ with st.sidebar:
         st.session_state.pop("uploaded_pdf_bytes", None)
         st.session_state.pop("uploaded_pdf_name", None)
         st.session_state.pop("uploaded_retriever", None)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
 
-    st.markdown('<div class="sb-card"><h4>🧪 Available Chemicals</h4>', unsafe_allow_html=True)
+    st.markdown("#### 🧪 Available Chemicals")
     sidebar_clicked = None
     with st.expander(f"Browse list ({len(get_available_chemicals())})", expanded=False):
         for chem in get_available_chemicals():
             if st.button(chem, key=f"chem_{chem}", use_container_width=True):
                 sidebar_clicked = chem
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
 
     st.caption(
         "⚠️ This assistant answers strictly from the loaded ICSC/MSDS cards. "
