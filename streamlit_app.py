@@ -305,7 +305,7 @@ def ask(question: str):
 with st.sidebar:
     render_sidebar_avatar()
 
-    st.markdown("#### 🎨 Theme / المظهر")
+    st.markdown("#### 🎨 Theme ")
     theme_choice = st.radio(
         "Theme",
         options=["🌙 Dark Mode", "☀️ Light Mode"],
