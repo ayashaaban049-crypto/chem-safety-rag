@@ -5,8 +5,8 @@ Chemical Safety & MSDS Assistant | Developed by Aya Shaaban & Iman Moustafa
 
 Streamlit front-end for the RAG pipeline built across 01_documents.py ->
 08_uploaded_pdf.py. All backend logic (Chroma retrieval, session-scoped
-uploaded-PDF FAISS retrieval, Groq generation) is unchanged from before —
-this file only adds visual styling and layout.
+uploaded-PDF FAISS retrieval, Groq generation) is unchanged — this file only
+adds visual styling, layout, and a Dark/Light theme switcher.
 """
 
 import base64
@@ -50,105 +50,169 @@ except Exception:
 
 
 # ---------------------------------------------------------------------------
-# Custom CSS — dark lab-safety theme
+# Theme state — defaults to Dark Mode on first load
 # ---------------------------------------------------------------------------
-def inject_css():
-    st.markdown(
-        """
-        <style>
-        :root {
-            --safety-cyan: #00e676;
-            --dark-emerald: #0b3d2e;
+if "theme" not in st.session_state:
+    st.session_state["theme"] = "dark"
+
+
+def inject_css(theme: str):
+    if theme == "dark":
+        vars_css = """
+            --bg-app: #0e1117;
             --bg-panel: #12181c;
-        }
+            --bg-card: #161d22;
+            --text-main: #ffffff;
+            --text-muted: #b8ffd9;
+            --accent: #00e676;
+            --accent-glow: rgba(0, 230, 118, 0.55);
+            --border-soft: rgba(0, 230, 118, 0.35);
+            --danger-bg: rgba(255, 87, 34, 0.10);
+            --danger-border: #ff5722;
+            --safe-bg: rgba(0, 230, 118, 0.08);
+            --neutral-bg: rgba(255, 255, 255, 0.04);
+            --neutral-border: #808a8f;
+        """
+    else:  # light
+        vars_css = """
+            --bg-app: #f8f9fa;
+            --bg-panel: #ffffff;
+            --bg-card: #f1f5f2;
+            --text-main: #212529;
+            --text-muted: #2e6b4f;
+            --accent: #1b8a4f;
+            --accent-glow: rgba(27, 138, 79, 0.35);
+            --border-soft: rgba(27, 138, 79, 0.30);
+            --danger-bg: rgba(255, 87, 34, 0.08);
+            --danger-border: #d84315;
+            --safe-bg: rgba(27, 138, 79, 0.08);
+            --neutral-bg: rgba(0, 0, 0, 0.03);
+            --neutral-border: #9aa1a6;
+        """
+
+    st.markdown(
+        f"""
+        <style>
+        :root {{
+            {vars_css}
+        }}
+
+        .stApp {{
+            background-color: var(--bg-app);
+            color: var(--text-main);
+        }}
+
+        /* Sidebar */
+        section[data-testid="stSidebar"] {{
+            background-color: var(--bg-panel);
+        }}
+        section[data-testid="stSidebar"] * {{
+            color: var(--text-main);
+        }}
 
         /* Header banner */
-        .lab-header {
-            background: linear-gradient(135deg, #0d1117 0%, #0b3d2e 60%, #08201a 100%);
-            border: 1px solid var(--safety-cyan);
+        .lab-header {{
+            background: linear-gradient(135deg, var(--bg-app) 0%, var(--bg-panel) 60%, var(--bg-card) 100%);
+            border: 1px solid var(--accent);
             border-radius: 14px;
             padding: 28px 32px;
             margin-bottom: 24px;
-            box-shadow: 0 0 24px rgba(0, 230, 118, 0.15);
-        }
-        .lab-header h1 {
-            color: #ffffff;
+            box-shadow: 0 0 24px var(--accent-glow);
+        }}
+        .lab-header h1 {{
+            color: var(--text-main);
             font-size: 2rem;
             margin: 0 0 6px 0;
-        }
-        .lab-header p {
-            color: #b8ffd9;
+        }}
+        .lab-header p {{
+            color: var(--text-muted);
             font-size: 0.95rem;
             margin: 0;
-        }
+        }}
 
         /* Sidebar avatar */
-        .avatar-wrap {
+        .avatar-wrap {{
             display: flex;
             justify-content: center;
             margin-bottom: 10px;
-        }
-        .avatar-wrap img {
+        }}
+        .avatar-wrap img {{
             width: 120px;
             height: 120px;
             object-fit: cover;
             border-radius: 50%;
-            border: 3px solid var(--safety-cyan);
-            box-shadow: 0 0 18px rgba(0, 230, 118, 0.55);
-        }
-        .dev-badge {
+            border: 3px solid var(--accent);
+            box-shadow: 0 0 18px var(--accent-glow);
+        }}
+        .dev-badge {{
             text-align: center;
-            color: #d7ffe9;
+            color: var(--text-muted);
             font-size: 0.9rem;
             font-weight: 600;
             margin-bottom: 18px;
-        }
+        }}
 
         /* Sidebar cards */
-        .sb-card {
-            background: var(--bg-panel);
-            border: 1px solid rgba(0, 230, 118, 0.35);
+        .sb-card {{
+            background: var(--bg-card);
+            border: 1px solid var(--border-soft);
             border-radius: 12px;
             padding: 14px 16px;
             margin-bottom: 16px;
-        }
-        .sb-card h4 {
-            color: var(--safety-cyan);
+        }}
+        .sb-card h4 {{
+            color: var(--accent);
             margin: 0 0 8px 0;
             font-size: 0.95rem;
-        }
+        }}
 
-        /* Quick query buttons */
-        div[data-testid="stButton"] > button {
+        /* Buttons */
+        div[data-testid="stButton"] > button {{
             border-radius: 10px !important;
-            border: 1px solid rgba(0, 230, 118, 0.4) !important;
+            border: 1px solid var(--border-soft) !important;
+            background-color: var(--bg-card) !important;
+            color: var(--text-main) !important;
             transition: all 0.25s ease-in-out;
-        }
-        div[data-testid="stButton"] > button:hover {
-            border: 1px solid var(--safety-cyan) !important;
-            box-shadow: 0 0 14px rgba(0, 230, 118, 0.65);
-            color: var(--safety-cyan) !important;
-        }
+        }}
+        div[data-testid="stButton"] > button:hover {{
+            border: 1px solid var(--accent) !important;
+            box-shadow: 0 0 14px var(--accent-glow);
+            color: var(--accent) !important;
+        }}
+
+        /* Text input / chat input */
+        div[data-testid="stChatInput"] textarea,
+        div[data-baseweb="input"] input {{
+            background-color: var(--bg-card) !important;
+            color: var(--text-main) !important;
+            border: 1px solid var(--border-soft) !important;
+        }}
+
+        /* Radio (theme switcher) */
+        div[role="radiogroup"] label {{
+            color: var(--text-main) !important;
+        }}
 
         /* Alert callouts for answers */
-        .alert-box {
+        .alert-box {{
             border-radius: 10px;
             padding: 16px 18px;
             margin: 10px 0;
             border-left: 5px solid;
-        }
-        .alert-danger {
-            background: rgba(255, 87, 34, 0.10);
-            border-left-color: #ff5722;
-        }
-        .alert-safe {
-            background: rgba(0, 230, 118, 0.08);
-            border-left-color: var(--safety-cyan);
-        }
-        .alert-neutral {
-            background: rgba(255, 255, 255, 0.04);
-            border-left-color: #808a8f;
-        }
+            color: var(--text-main);
+        }}
+        .alert-danger {{
+            background: var(--danger-bg);
+            border-left-color: var(--danger-border);
+        }}
+        .alert-safe {{
+            background: var(--safe-bg);
+            border-left-color: var(--accent);
+        }}
+        .alert-neutral {{
+            background: var(--neutral-bg);
+            border-left-color: var(--neutral-border);
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -189,7 +253,6 @@ def render_sidebar_avatar():
 
 
 def get_alert_class(question: str, answer: str) -> str:
-    """Pick a callout color based on the question/answer topic."""
     text = f"{question} {answer}".lower()
     danger_words = ["spill", "first aid", "fire", "emergency", "exposure", "inhal", "burn"]
     safe_words = ["storage", "store", "ppe", "protective equipment", "dispos"]
@@ -202,8 +265,6 @@ def get_alert_class(question: str, answer: str) -> str:
 
 @st.cache_resource(show_spinner=False)
 def ensure_vector_store():
-    """Build the Chroma store once (from data/) and cache it for the session.
-    If chroma_db/ was shipped pre-built in the repo, this just loads it."""
     if CHROMA_DIR.exists() and any(CHROMA_DIR.iterdir()):
         return store_mod.load_vector_store()
 
@@ -217,7 +278,6 @@ def ensure_vector_store():
 
 
 def get_available_chemicals() -> list[str]:
-    """List unique chemical names parsed from the PDF filenames in data/."""
     data_dir = Path(__file__).parent / "data"
     names = set()
     for pdf_path in data_dir.glob("*.pdf"):
@@ -278,10 +338,19 @@ def ask(question: str):
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
-inject_css()
-
 with st.sidebar:
     render_sidebar_avatar()
+
+    st.markdown('<div class="sb-card"><h4>🎨 Theme / المظهر</h4>', unsafe_allow_html=True)
+    theme_choice = st.radio(
+        "Theme",
+        options=["🌙 Dark Mode", "☀️ Light Mode"],
+        index=0 if st.session_state["theme"] == "dark" else 1,
+        label_visibility="collapsed",
+        key="theme_radio",
+    )
+    st.session_state["theme"] = "dark" if theme_choice == "🌙 Dark Mode" else "light"
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="sb-card"><h4>⚙️ System</h4>', unsafe_allow_html=True)
     if st.button("🔄 Rebuild knowledge base"):
@@ -342,6 +411,11 @@ with st.sidebar:
         "It is a decision-support tool, not a replacement for your lab's "
         "official safety procedures or emergency services."
     )
+
+# ---------------------------------------------------------------------------
+# Apply CSS for the selected theme (must run after the sidebar sets it)
+# ---------------------------------------------------------------------------
+inject_css(st.session_state["theme"])
 
 # ---------------------------------------------------------------------------
 # Main
