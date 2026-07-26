@@ -116,7 +116,49 @@ def format_context_for_prompt(results: list[dict]) -> str:
         citation = f"[{i}] {r['chemical_name']} (ICSC {r['icsc_number']}) - {r['section']}"
         blocks.append(f"{citation}\n{r['text']}")
     return "\n\n".join(blocks)
+def retrieve_context_hybrid(
+    query: str,
+    uploaded_retriever=None,
+    k: int = TOP_K,
+    fetch_k: int = FETCH_K,
+) -> list[dict]:
+    """Same as retrieve_context(), but optionally also searches a temporary,
+    session-scoped uploaded-PDF retriever (see 08_uploaded_pdf.py) and merges
+    the results in.
 
+    If uploaded_retriever is None, this behaves EXACTLY like retrieve_context()
+    — no change for users who haven't uploaded anything.
+    """
+    chroma_results = retrieve_context(query, k=k, fetch_k=fetch_k)
+
+    if uploaded_retriever is None:
+        return chroma_results
+
+    try:
+        uploaded_docs = uploaded_retriever.invoke(query)
+    except Exception as exc:
+        print(f"[06_retrieve_context] Uploaded retriever failed, ignoring it: {exc}")
+        return chroma_results
+
+    uploaded_results = []
+    for doc in uploaded_docs:
+        uploaded_results.append(
+            {
+                "text": doc.page_content,
+                # Slightly favor the user's own uploaded document: it's the
+                # one thing they explicitly asked to be searched.
+                "score": 0.9,
+                "chemical_name": doc.metadata.get("chemical_name"),
+                "icsc_number": doc.metadata.get("icsc_number"),
+                "section": doc.metadata.get("section", "Uploaded Document"),
+                "source_file": doc.metadata.get("source_file"),
+                "page": doc.metadata.get("page"),
+            }
+        )
+
+    merged = uploaded_results + chroma_results
+    merged.sort(key=lambda r: r["score"], reverse=True)
+    return merged[:k]
 
 if __name__ == "__main__":
     test_queries = [
