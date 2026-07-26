@@ -6,11 +6,12 @@ Chemical Safety & MSDS Assistant | Developed by Aya Shaaban & Iman Moustafa
 Streamlit front-end for the RAG pipeline built across 01_documents.py ->
 08_uploaded_pdf.py. All backend logic (Chroma retrieval, session-scoped
 uploaded-PDF FAISS retrieval, Groq generation) is unchanged — this file only
-adds visual styling, layout, and a Dark/Light theme switcher.
+adds visual styling and layout.
 
-Styling note: custom CSS is deliberately kept minimal and only targets
-elements we render ourselves (header banner, dev badge, prompt buttons) plus
-the top-level app/sidebar/header background so there are no white gaps.
+Styling note: the app uses a single, fixed dark theme for every visitor
+(independent of their device's OS/browser theme setting). Custom CSS is
+kept minimal and only targets elements we render ourselves (header banner,
+dev badge, prompt buttons) plus the top-level app/sidebar/header background.
 Native Streamlit components (file_uploader, radio, text inputs) are left
 untouched so their built-in rendering and contrast stay intact.
 """
@@ -56,13 +57,18 @@ except Exception:
 
 
 # ---------------------------------------------------------------------------
-# Theme state — defaults to Dark Mode on first load
+# Fixed dark theme — same for every visitor regardless of their device theme
 # ---------------------------------------------------------------------------
-if "theme" not in st.session_state:
-    st.session_state["theme"] = "dark"
+BG_APP = "#0e1117"
+BG_SIDEBAR = "#12181c"
+TEXT_MAIN = "#ffffff"
+TEXT_MUTED = "#b8ffd9"
+ACCENT = "#00e676"
+ACCENT_GLOW = "rgba(0, 230, 118, 0.55)"
+BORDER_SOFT = "rgba(0, 230, 118, 0.35)"
 
 
-def inject_css(theme: str):
+def inject_css():
     """Minimal, targeted CSS. Only touches:
     - overall app / header / sidebar background (so there are no white gaps)
     - the custom header banner we render
@@ -71,59 +77,38 @@ def inject_css(theme: str):
 
     Deliberately does NOT touch st.file_uploader, st.radio, text inputs, or
     any other native Streamlit component internals — those keep their
-    built-in Streamlit styling and contrast in both themes.
+    built-in Streamlit styling and contrast.
     """
-    if theme == "dark":
-        bg_app = "#0e1117"
-        bg_sidebar = "#12181c"
-        text_main = "#ffffff"
-        text_muted = "#b8ffd9"
-        accent = "#00e676"
-        accent_glow = "rgba(0, 230, 118, 0.55)"
-        border_soft = "rgba(0, 230, 118, 0.35)"
-    else:  # light
-        bg_app = "#f8f9fa"
-        bg_sidebar = "#ffffff"
-        text_main = "#212529"
-        text_muted = "#2e6b4f"
-        accent = "#1b8a4f"
-        accent_glow = "rgba(27, 138, 79, 0.35)"
-        border_soft = "rgba(27, 138, 79, 0.30)"
-
     st.markdown(
         f"""
         <style>
-        /* Consistent app-wide background so there are no white gaps between
-           the header bar, main container, and sidebar. */
         .stApp,
         header[data-testid="stHeader"] {{
-            background-color: {bg_app};
+            background-color: {BG_APP};
         }}
         section[data-testid="stSidebar"] {{
-            background-color: {bg_sidebar};
+            background-color: {BG_SIDEBAR};
         }}
 
-        /* Custom header banner */
         .lab-header {{
-            background: linear-gradient(135deg, {bg_app} 0%, {bg_sidebar} 100%);
-            border: 1px solid {accent};
+            background: linear-gradient(135deg, {BG_APP} 0%, {BG_SIDEBAR} 100%);
+            border: 1px solid {ACCENT};
             border-radius: 14px;
             padding: 28px 32px;
             margin-bottom: 24px;
-            box-shadow: 0 0 24px {accent_glow};
+            box-shadow: 0 0 24px {ACCENT_GLOW};
         }}
         .lab-header h1 {{
-            color: {text_main};
+            color: {TEXT_MAIN};
             font-size: 2rem;
             margin: 0 0 6px 0;
         }}
         .lab-header p {{
-            color: {text_muted};
+            color: {TEXT_MUTED};
             font-size: 0.95rem;
             margin: 0;
         }}
 
-        /* Developer badge + avatar */
         .avatar-wrap {{
             display: flex;
             justify-content: center;
@@ -134,30 +119,28 @@ def inject_css(theme: str):
             height: 120px;
             object-fit: cover;
             border-radius: 50%;
-            border: 3px solid {accent};
-            box-shadow: 0 0 18px {accent_glow};
+            border: 3px solid {ACCENT};
+            box-shadow: 0 0 18px {ACCENT_GLOW};
         }}
         .dev-badge {{
             text-align: center;
-            color: {text_muted};
+            color: {TEXT_MUTED};
             font-size: 0.9rem;
             font-weight: 600;
             margin-bottom: 18px;
         }}
 
-        /* Prompt / action buttons only — hover glow effect */
         div[data-testid="stButton"] > button {{
             border-radius: 10px !important;
-            border: 1px solid {border_soft} !important;
+            border: 1px solid {BORDER_SOFT} !important;
             transition: all 0.25s ease-in-out;
         }}
         div[data-testid="stButton"] > button:hover {{
-            border: 1px solid {accent} !important;
-            box-shadow: 0 0 14px {accent_glow};
-            color: {accent} !important;
+            border: 1px solid {ACCENT} !important;
+            box-shadow: 0 0 14px {ACCENT_GLOW};
+            color: {ACCENT} !important;
         }}
 
-        /* Answer callout boxes */
         .alert-box {{
             border-radius: 10px;
             padding: 16px 18px;
@@ -170,7 +153,7 @@ def inject_css(theme: str):
         }}
         .alert-safe {{
             background: rgba(0, 230, 118, 0.08);
-            border-left-color: {accent};
+            border-left-color: {ACCENT};
         }}
         .alert-neutral {{
             background: rgba(128, 128, 128, 0.08);
@@ -299,22 +282,10 @@ def ask(question: str):
 
 
 # ---------------------------------------------------------------------------
-# Sidebar (plain Streamlit containers — no custom card CSS, avoids the
-# rendering conflicts from before)
+# Sidebar (plain Streamlit containers — no theme toggle, no custom card CSS)
 # ---------------------------------------------------------------------------
 with st.sidebar:
     render_sidebar_avatar()
-
-    st.markdown("#### 🎨 Theme ")
-    theme_choice = st.radio(
-        "Theme",
-        options=["🌙 Dark Mode", "☀️ Light Mode"],
-        index=0 if st.session_state["theme"] == "dark" else 1,
-        label_visibility="collapsed",
-        key="theme_radio",
-    )
-    st.session_state["theme"] = "dark" if theme_choice == "🌙 Dark Mode" else "light"
-    st.divider()
 
     st.markdown("#### ⚙️ System")
     if st.button("🔄 Rebuild knowledge base"):
@@ -376,9 +347,7 @@ with st.sidebar:
     )
 
 # ---------------------------------------------------------------------------
-# Apply CSS for the selected theme (must run after the sidebar sets it)
-# ---------------------------------------------------------------------------
-inject_css(st.session_state["theme"])
+inject_css()
 
 # ---------------------------------------------------------------------------
 # Main
