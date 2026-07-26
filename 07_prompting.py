@@ -27,6 +27,7 @@ from groq import Groq
 
 retrieve_module = importlib.import_module("06_retrieve_context")
 retrieve_context = retrieve_module.retrieve_context
+retrieve_context_hybrid = retrieve_module.retrieve_context_hybrid
 format_context_for_prompt = retrieve_module.format_context_for_prompt
 
 # ---------------------------------------------------------------------------
@@ -117,10 +118,18 @@ def generate_answer(
     api_key: str = None,
     model: str = None,
     temperature: float = 0.1,
+    uploaded_retriever=None,
 ) -> dict:
-    """Full RAG call: translate -> retrieve context -> build grounded prompt -> call Groq."""
+    """Full RAG call: translate -> retrieve context -> build grounded prompt -> call Groq.
+
+    If uploaded_retriever is provided (a temporary, session-scoped FAISS
+    retriever built from a user-uploaded PDF — see 08_uploaded_pdf.py), its
+    results are merged in with the permanent Chroma knowledge base for this
+    call only. If uploaded_retriever is None (the default), behavior is
+    unchanged from before.
+    """
     search_query = _translate_to_english(question, api_key, model)
-    results = retrieve_context(search_query, k=k)
+    results = retrieve_context_hybrid(search_query, uploaded_retriever=uploaded_retriever, k=k)
 
     if not results:
         return {
