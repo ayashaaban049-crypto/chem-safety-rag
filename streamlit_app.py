@@ -121,16 +121,10 @@ with st.sidebar:
     st.markdown("### 🧪 Chemical Safety & MSDS Assistant")
     st.caption("👩‍💻 Developed by: Aya Shaaban & Iman Moustafa")
     st.divider()
-    st.markdown(
-        "**Stack**\n"
-        "- Embeddings: `intfloat/multilingual-e5-small`\n"
-        "- LLM: Groq `llama-3.3-70b-versatile`\n"
-        "- Vector store: ChromaDB\n"
-        "- Knowledge base: ICSC + MSDS + NIOSH + WHO safety documents"
-    )
-    st.divider()
-    key_status = "✅ configured" if prompting.GROQ_API_KEY else "❌ not set"
-    st.markdown(f"**Groq API key:** {key_status}")
+ 
+
+    #key_status = "✅ configured" if prompting.GROQ_API_KEY else "❌ not set"
+    #st.markdown(f"**Groq API key:** {key_status}")
     if st.button("🔄 Rebuild knowledge base"):
         st.cache_resource.clear()
         st.rerun()
