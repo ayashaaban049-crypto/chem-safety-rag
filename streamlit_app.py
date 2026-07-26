@@ -20,6 +20,7 @@ prep_mod = importlib.import_module("02_preprocessing")
 chunk_mod = importlib.import_module("03_chunking")
 store_mod = importlib.import_module("05_create_chroma_store")
 prompting = importlib.import_module("07_prompting")
+uploaded_pdf_mod = importlib.import_module("08_uploaded_pdf")
 
 st.set_page_config(
     page_title="Chemical Safety & MSDS Assistant",
@@ -103,7 +104,11 @@ def ask(question: str):
 
         with st.spinner("Retrieving safety context and generating answer..."):
             try:
-                result = prompting.generate_answer(question, k=5)
+                result = prompting.generate_answer(
+                    question,
+                    k=5,
+                    uploaded_retriever=st.session_state.get("uploaded_retriever"),
+                )
             except Exception as exc:
                 result = {"answer": f"⚠️ Error generating answer: {exc}", "sources": []}
 
@@ -151,9 +156,23 @@ with st.sidebar:
         if st.session_state.get("uploaded_pdf_name") != uploaded_pdf.name:
             st.session_state["uploaded_pdf_bytes"] = uploaded_pdf.getvalue()
             st.session_state["uploaded_pdf_name"] = uploaded_pdf.name
-            # Reset any previously built temporary retriever for the old file
             st.session_state.pop("uploaded_retriever", None)
-        st.success(f"✅ Loaded for this session: {uploaded_pdf.name}")
+
+            with st.spinner(f"Indexing {uploaded_pdf.name} for this session..."):
+                try:
+                    retriever = uploaded_pdf_mod.build_uploaded_retriever(
+                        st.session_state["uploaded_pdf_bytes"],
+                        file_name=uploaded_pdf.name,
+                    )
+                    st.session_state["uploaded_retriever"] = retriever
+                except Exception as exc:
+                    st.session_state["uploaded_retriever"] = None
+                    st.error(f"⚠️ Could not process this PDF: {exc}")
+
+        if st.session_state.get("uploaded_retriever") is not None:
+            st.success(f"✅ Loaded for this session: {uploaded_pdf.name}")
+        else:
+            st.warning(f"⚠️ No searchable text found in: {uploaded_pdf.name}")
     else:
         # If the user removes the uploaded file via the widget's "x", clear
         # the session state too so stale data isn't reused.
