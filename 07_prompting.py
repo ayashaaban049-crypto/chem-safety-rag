@@ -46,9 +46,11 @@ STRICT RULES — follow these exactly:
 1. Answer ONLY using the "RETRIEVED CONTEXT" provided below. Do not use outside \
    knowledge, do not guess, and do not fill gaps with general chemistry knowledge.
 2. If the retrieved context does not contain enough information to answer safely, \
-   say so explicitly: state that the available safety cards do not cover this, and \
-   recommend consulting the physical MSDS/ICSC or a safety officer. Never invent a \
-   safety procedure.
+   your response MUST start with the exact tag [NO_MATCH] on its own, followed by \
+   a brief explanation that the available safety cards do not cover this, and a \
+   recommendation to consult the physical MSDS/ICSC or a safety officer. Never \
+   invent a safety procedure. Use [NO_MATCH] ONLY when you truly cannot answer — \
+   not when you have partial but usable information.
 3. Every factual claim must be followed by a citation marker like [1], [2] that \
    matches the numbered context blocks you were given.
 4. Prioritize immediate, actionable safety steps first (what to do right now), then \
@@ -112,6 +114,19 @@ def _translate_to_english(question: str, api_key: str = None, model: str = None)
         return question  # if translation fails, just retrieve with the original
 
 
+NO_MATCH_TAG = "[NO_MATCH]"
+
+
+def _strip_no_match_tag(answer_text: str) -> tuple[str, bool]:
+    """Detect the model's explicit [NO_MATCH] marker and strip it from the
+    displayed text. Returns (cleaned_text, is_fallback)."""
+    stripped = answer_text.strip()
+    if stripped.startswith(NO_MATCH_TAG):
+        cleaned = stripped[len(NO_MATCH_TAG):].strip()
+        return cleaned, True
+    return answer_text, False
+
+
 def generate_answer(
     question: str,
     k: int = 5,
@@ -127,6 +142,11 @@ def generate_answer(
     results are merged in with the permanent Chroma knowledge base for this
     call only. If uploaded_retriever is None (the default), behavior is
     unchanged from before.
+
+    Sources are returned ONLY when they were actually used to produce a real
+    answer. If retrieval finds nothing above the relevance threshold, or the
+    model itself signals [NO_MATCH] (insufficient context), sources is always
+    an empty list — never populated just because chunks were in the Top-K.
     """
     search_query = _translate_to_english(question, api_key, model)
     results = retrieve_context_hybrid(search_query, uploaded_retriever=uploaded_retriever, k=k)
@@ -155,21 +175,21 @@ def generate_answer(
         ],
     )
 
-    answer_text = response.choices[0].message.content
+    raw_answer = response.choices[0].message.content
+    answer_text, is_fallback = _strip_no_match_tag(raw_answer)
 
-    return {
-        "answer": answer_text,
-        "sources": [
-            {
-                "chemical_name": r["chemical_name"],
-                "icsc_number": r["icsc_number"],
-                "section": r["section"],
-                "source_file": r["source_file"],
-                "score": r["score"],
-            }
-            for r in results
-        ],
-    }
+    sources = [] if is_fallback else [
+        {
+            "chemical_name": r["chemical_name"],
+            "icsc_number": r["icsc_number"],
+            "section": r["section"],
+            "source_file": r["source_file"],
+            "score": r["score"],
+        }
+        for r in results
+    ]
+
+    return {"answer": answer_text, "sources": sources}
 
 
 if __name__ == "__main__":
