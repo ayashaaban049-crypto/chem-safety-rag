@@ -27,7 +27,7 @@ store_module = importlib.import_module("05_create_chroma_store")
 load_vector_store = store_module.load_vector_store
 
 TOP_K = 5
-FETCH_K = 20  # over-fetch, then re-rank
+FETCH_K = 40  # over-fetch, then re-rank
 import os
 
 # Minimum combined score (similarity + boosts) a chunk must reach to be
