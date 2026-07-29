@@ -21,7 +21,9 @@ Run standalone (requires GROQ_API_KEY to be set in your environment):
 """
 
 import os
+import re
 import importlib
+from pathlib import Path
 
 from groq import Groq
 
@@ -29,6 +31,8 @@ retrieve_module = importlib.import_module("06_retrieve_context")
 retrieve_context = retrieve_module.retrieve_context
 retrieve_context_hybrid = retrieve_module.retrieve_context_hybrid
 format_context_for_prompt = retrieve_module.format_context_for_prompt
+
+docs_module = importlib.import_module("01_documents")
 
 # ---------------------------------------------------------------------------
 # Config — never put a real key here. Left blank; filled at runtime from
@@ -75,7 +79,68 @@ Answer the question using only the retrieved context above, with citation marker
 like [1], [2] referencing the numbered blocks. End your answer with a "Sources" line \
 listing which chemicals/sections you cited.
 """
+OUT_OF_DOMAIN_MESSAGE = (
+    "I can only answer questions related to chemical safety, SDS/MSDS documents, "
+    "laboratory hazards, PPE, first aid, spill response, storage, exposure, and "
+    "related safety information. Please ask a question within this domain."
+)
 
+# Generic domain vocabulary (English + Arabic) that signals a chemical-safety
+# question even without naming a specific chemical.
+_DOMAIN_KEYWORDS = [
+    # English
+    "chemical", "chemistry", "safety", "sds", "msds", "ghs", "ppe",
+    "protective equipment", "first aid", "exposure", "spill", "storage",
+    "store", "toxicity", "toxic", "fire", "firefighting", "hazard",
+    "hazardous", "cas number", "cas no", "laboratory", "lab", "poison",
+    "corrosive", "flammable", "inhalation", "ingestion", "disposal",
+    "dispose", "waste", "icsc", "niosh", "who compendium", "burn",
+    "gas leak", "ventilation", "fume", "acid", "ppe", "antidote",
+    # Arabic
+    "كيميائ", "سلامة", "تسرب", "إسعاف", "اسعاف", "حماية", "تخزين",
+    "سموم", "سام", "حريق", "معمل", "مختبر", "غاز", "حمض", "احتراق",
+    "استنشاق", "تلامس", "نفايات", "تخلص",
+]
+
+_DOMAIN_KEYWORD_PATTERN = None  # built lazily, cached
+
+
+def _get_domain_pattern():
+    """Build (once) a combined regex of generic domain keywords + every
+    known chemical name parsed from the PDFs in data/. Cached at module
+    level so this file scan only happens once per process."""
+    global _DOMAIN_KEYWORD_PATTERN
+    if _DOMAIN_KEYWORD_PATTERN is not None:
+        return _DOMAIN_KEYWORD_PATTERN
+
+    terms = list(_DOMAIN_KEYWORDS)
+    try:
+        data_dir = Path(__file__).parent / "data"
+        for pdf_path in data_dir.glob("*.pdf"):
+            meta = docs_module.parse_filename_metadata(pdf_path.name)
+            name = meta.get("chemical_name")
+            if name:
+                # split multi-word chemical names into individual tokens too
+                # (e.g. "Sodium Hydroxide" -> "sodium", "hydroxide")
+                for token in re.split(r"[\s,()]+", name.lower()):
+                    if len(token) >= 4:
+                        terms.append(token)
+                terms.append(name.lower())
+    except Exception:
+        pass  # fall back to generic keywords only if data/ isn't available
+
+    escaped = sorted({re.escape(t) for t in terms if t}, key=len, reverse=True)
+    pattern = "|".join(escaped)
+    _DOMAIN_KEYWORD_PATTERN = re.compile(pattern, re.IGNORECASE)
+    return _DOMAIN_KEYWORD_PATTERN
+
+
+def is_in_domain(query: str) -> bool:
+    """Cheap, LLM-free check: does this query plausibly belong to the
+    chemical-safety domain? Runs before any translation, retrieval, or LLM
+    call so out-of-domain messages (like 'hello') never trigger the pipeline."""
+    pattern = _get_domain_pattern()
+    return bool(pattern.search(query or ""))
 
 def get_groq_client(api_key: str = None) -> Groq:
     key = api_key or GROQ_API_KEY
@@ -148,6 +213,12 @@ def generate_answer(
     model itself signals [NO_MATCH] (insufficient context), sources is always
     an empty list — never populated just because chunks were in the Top-K.
     """
+    # Domain Guard — runs BEFORE translation, retrieval, or any LLM call.
+    # If the query isn't plausibly about chemical safety, reject it here in
+    # plain Python: no FAISS/Chroma call, no BM25/reranker, no Groq call.
+    if not is_in_domain(question):
+        return {"answer": OUT_OF_DOMAIN_MESSAGE, "sources": []}
+
     search_query = _translate_to_english(question, api_key, model)
     results = retrieve_context_hybrid(search_query, uploaded_retriever=uploaded_retriever, k=k)
 
