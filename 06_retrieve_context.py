@@ -70,13 +70,26 @@ def _matched_sections(query: str) -> set[str]:
 def _score_boost(doc, query_lower: str, target_sections: set[str]) -> float:
     boost = 0.0
     chemical = (doc.metadata.get("chemical_name") or "").lower()
+    source_file = (doc.metadata.get("source_file") or "").lower()
+
+    # Generic multi-chemical reference guides (NIOSH, WHO compendium) cover
+    # hundreds of substances, so their chunks must NOT compete on equal
+    # footing with a chunk from a chemical-specific ICSC/MSDS card when the
+    # user named a specific chemical. Detect them by filename.
+    is_generic_reference = "niosh" in source_file or "who_compendium" in source_file
+
     if chemical and chemical in query_lower:
-        boost += 0.25  # strong boost: user named this exact chemical
-    elif chemical and any(word in query_lower for word in chemical.split()):
-        boost += 0.10  # partial name match
+        boost += 0.55  # strong boost: user named this exact chemical
+    elif chemical and any(word in query_lower for word in chemical.split() if len(word) > 3):
+        boost += 0.20  # partial name match
 
     if target_sections and doc.metadata.get("section") in target_sections:
-        boost += 0.15
+        boost += 0.08
+        if is_generic_reference:
+            # Section match alone shouldn't let a generic guide outrank a
+            # chemical-specific card — cut its section boost further.
+            boost -= 0.05
+
     return boost
 
 
