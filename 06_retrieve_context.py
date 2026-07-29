@@ -28,7 +28,12 @@ load_vector_store = store_module.load_vector_store
 
 TOP_K = 5
 FETCH_K = 20  # over-fetch, then re-rank
+import os
 
+# Minimum combined score (similarity + boosts) a chunk must reach to be
+# considered relevant enough to answer from. Chunks below this are rejected
+# rather than being returned just because they were in the Top-K.
+RELEVANCE_THRESHOLD = float(os.environ.get("RELEVANCE_THRESHOLD", "0.35"))
 SECTION_KEYWORDS = {
     "spill": ["Spillage Disposal", "Spillage"],
     "leak": ["Spillage Disposal", "Spillage"],
@@ -75,8 +80,16 @@ def _score_boost(doc, query_lower: str, target_sections: set[str]) -> float:
     return boost
 
 
-def retrieve_context(query: str, k: int = TOP_K, fetch_k: int = FETCH_K) -> list[dict]:
-    """Hybrid top-k retrieval. Returns a list of dicts with text + metadata + score."""
+def retrieve_context(
+    query: str, k: int = TOP_K, fetch_k: int = FETCH_K, threshold: float = RELEVANCE_THRESHOLD
+) -> list[dict]:
+    """Hybrid top-k retrieval. Returns a list of dicts with text + metadata + score.
+
+    Chunks scoring below `threshold` are rejected outright rather than being
+    returned just because they made the Top-K cut. If nothing clears the
+    threshold, this returns an empty list — callers must treat that as
+    "no relevant context found", not as "return whatever we have."
+    """
     store = load_vector_store()
 
     # similarity_search_with_relevance_scores gives higher = more similar (0-1 ish)
@@ -91,7 +104,10 @@ def retrieve_context(query: str, k: int = TOP_K, fetch_k: int = FETCH_K) -> list
         reranked.append((doc, final_score))
 
     reranked.sort(key=lambda pair: pair[1], reverse=True)
-    top = reranked[:k]
+
+    # Reject low-confidence chunks instead of always returning Top-K.
+    relevant = [(doc, score) for doc, score in reranked if score >= threshold]
+    top = relevant[:k]
 
     results = []
     for doc, score in top:
