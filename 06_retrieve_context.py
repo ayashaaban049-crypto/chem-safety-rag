@@ -67,27 +67,38 @@ def _matched_sections(query: str) -> set[str]:
     return hits
 
 
+import re as _re
+
+
+def _clean_chemical_tokens(chemical: str) -> list[str]:
+    """Strip punctuation/qualifiers like ', Concentrated (_ 51)' down to
+    meaningful word tokens, e.g. 'sulfuric acid, concentrated (_ 51)' ->
+    ['sulfuric', 'acid', 'concentrated']."""
+    words = _re.findall(r"[a-zA-Z]{4,}", chemical.lower())
+    return words
+
+
 def _score_boost(doc, query_lower: str, target_sections: set[str]) -> float:
     boost = 0.0
-    chemical = (doc.metadata.get("chemical_name") or "").lower()
+    chemical_raw = (doc.metadata.get("chemical_name") or "").lower()
     source_file = (doc.metadata.get("source_file") or "").lower()
 
-    # Generic multi-chemical reference guides (NIOSH, WHO compendium) cover
-    # hundreds of substances, so their chunks must NOT compete on equal
-    # footing with a chunk from a chemical-specific ICSC/MSDS card when the
-    # user named a specific chemical. Detect them by filename.
     is_generic_reference = "niosh" in source_file or "who_compendium" in source_file
 
-    if chemical and chemical in query_lower:
-        boost += 0.55  # strong boost: user named this exact chemical
-    elif chemical and any(word in query_lower for word in chemical.split() if len(word) > 3):
-        boost += 0.20  # partial name match
+    if chemical_raw:
+        tokens = _clean_chemical_tokens(chemical_raw)
+        matched = [t for t in tokens if t in query_lower]
+        if len(matched) >= 2:
+            # Multiple distinct words from the chemical's name appear in the
+            # query (e.g. both "sulfuric" and "acid") — strong signal this
+            # is the chemical the user is asking about.
+            boost += 0.60
+        elif len(matched) == 1:
+            boost += 0.15
 
     if target_sections and doc.metadata.get("section") in target_sections:
         boost += 0.08
         if is_generic_reference:
-            # Section match alone shouldn't let a generic guide outrank a
-            # chemical-specific card — cut its section boost further.
             boost -= 0.05
 
     return boost
